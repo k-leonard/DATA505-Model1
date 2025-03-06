@@ -1,0 +1,154 @@
+---
+title: 'Model 1'
+author: "JACE HIGA" 
+output:
+  pdf_document:
+---
+
+## Load in Libaries
+```{r}
+library(tidyverse)
+library(caret)
+library(tidytext)
+library(fastDummies)
+```
+
+## Reading in the Dataframe
+```{r}
+wine <- readRDS(gzcon(url("https://cd-public.github.io/D505/dat/pinot.rds")))
+```
+
+
+## Tidy Text
+```{r}
+library(tidytext)
+wine_desc <- wine %>%
+  unnest_tokens(word, description) %>%
+  anti_join(stop_words) %>%
+  count(word) %>%
+  arrange(desc(n))
+
+wine_desc
+```
+
+
+## Engineering Features
+```{r}
+## 0.5116
+wino <- wine %>%
+  mutate(fct_year = factor(year)) %>%
+  mutate(description = tolower(description)) %>%
+  mutate(cherry = str_detect(description, "cherry"),
+         chocolate = str_detect(description, "chocolate"),
+         earth = str_detect(description, "earth"),
+         oak = str_detect(description, "oak"),
+         aroma = str_detect(description, "aroma"),
+         dark = str_detect(description, "dark"),
+         berry = str_detect(description, "berry"),
+         spice = str_detect(description, "spice"),
+         floral = str_detect(description, "floral"),
+         vanilla = str_detect(description, "vanilla"),
+         pepper = str_detect(description, "pepper"),
+         fruit = str_detect(description, "fruit"),
+         balance = str_detect(description, "balance"),
+         acidity = str_detect(description, "acidity"),
+         complex = str_detect(description, "complex"),
+         nose = str_detect(description, "nose")) %>%
+  mutate(cherry_year = year * cherry, 
+         chocolate_year = year * chocolate,
+         earth_year = year * earth,
+         oak_year = year * oak,
+         aroma_year = year * aroma, 
+         berry_year = year * berry,
+         spice_year = year * spice,
+         floral_year = year * floral,
+         vanilla_year = year * vanilla,
+         pepper_year = year * pepper,
+         fruit_year = year * fruit,
+         balance_year = year * balance,
+         acidity_year = year * acidity,
+         complex_year = year * complex,
+         nose_year = year * nose,
+        ) %>%
+  select(-description)
+```
+
+
+## Building KNN Model
+```{r}
+set.seed(5)
+
+wine_sample <- wino %>% sample_n(size = 0.1 * nrow(wino))
+
+split <- createDataPartition(wine_sample$province, p = 0.8, list = FALSE)
+train <- wine_sample[split, ]
+test <- wine_sample[-split, ]
+fit <- train(province ~ .,
+             data = train, 
+             method = "knn",
+             metric = "Kappa",
+             trControl = trainControl(method = "cv", number = 5))
+
+confusionMatrix(predict(fit, test),factor(test$province))
+```
+
+
+
+
+
+
+
+
+
+
+
+
+## WORDS
+```{r}
+library(tidytext)
+library(SnowballC)
+library(pROC) 
+```
+
+```{r}
+desc_to_words <- function(df, omits) { 
+  df %>%
+    unnest_tokens(word, description) %>%
+    anti_join(stop_words) %>% 
+    filter(!(word %in% omits))
+}
+```
+
+```{r}
+words <- desc_to_words(wine, c("wine","pinot","vineyard"))
+
+head(words)
+```
+
+```{r}
+words_to_stems <- function(df) { 
+  df %>%
+    mutate(word = wordStem(word))
+}
+```
+
+```{r}
+stems <- words_to_stems(words)
+head(stems)
+```
+
+```{r}
+filter_by_count <- function(df, j) { 
+  df %>%
+    count(id, word) %>% 
+    group_by(id) %>% mutate(exists = (n>0)) %>% ungroup %>% 
+    group_by(word) %>% 
+    mutate(total = sum(n)) %>% 
+    filter(total > j)
+}
+```
+
+```{r}
+fstems = filter_by_count(stems, 1000)
+fstems
+```
