@@ -1,6 +1,6 @@
 ---
 title: 'Model 1'
-author: "JACE HIGA" 
+author: "Group 10" 
 output:
   pdf_document:
 ---
@@ -15,7 +15,7 @@ library(fastDummies)
 
 ## Reading in the Dataframe
 ```{r}
-wine <- readRDS(gzcon(url("https://cd-public.github.io/D505/dat/pinot.rds")))
+wine <- readRDS(gzcon(url("https://github.com/cd-public/D505/raw/master/dat/model.rds")))
 ```
 
 
@@ -23,21 +23,32 @@ wine <- readRDS(gzcon(url("https://cd-public.github.io/D505/dat/pinot.rds")))
 ```{r}
 library(tidytext)
 wine_desc <- wine %>%
+  filter(province == "Oregon") %>%
   unnest_tokens(word, description) %>%
   anti_join(stop_words) %>%
   count(word) %>%
-  arrange(desc(n))
+  arrange(desc(n)) %>%
+  mutate(prop = n / sum(n))
 
 wine_desc
+```
+```{r}
+library(dplyr)
+
+wine %>%
+  distinct(province)
 ```
 
 
 ## Engineering Features
+
 ```{r}
-## 0.5116
+library(tidyverse)
+library(stringr)
+
 wino <- wine %>%
-  mutate(fct_year = factor(year)) %>%
-  mutate(description = tolower(description)) %>%
+  mutate(fct_year = factor(year),
+         description = tolower(description)) %>%
   mutate(cherry = str_detect(description, "cherry"),
          chocolate = str_detect(description, "chocolate"),
          earth = str_detect(description, "earth"),
@@ -53,12 +64,41 @@ wino <- wine %>%
          balance = str_detect(description, "balance"),
          acidity = str_detect(description, "acidity"),
          complex = str_detect(description, "complex"),
-         nose = str_detect(description, "nose")) %>%
+         nose = str_detect(description, "nose"),
+         light = str_detect(description, "light"),
+         raspberry = str_detect(description, "raspberry"),
+         cranberry = str_detect(description, "cranberry"),
+         alert = str_detect(description, "alert"),
+         allergic = str_detect(description, "allergic"),
+         acids = str_detect(description, "acids"),
+         willamette = str_detect(description, "willamette"),
+         stiff = str_detect(description, "stiff"),
+         details = str_detect(description, "details"),
+         lick = str_detect(description, "lick"),
+         beaune = str_detect(description, "beaune"),
+         nuits = str_detect(description, "nuits"),
+         georges = str_detect(description, "georges"),
+         chambertin = str_detect(description, "chambertin"),
+         dundee = str_detect(description, "dundee"),
+         aeration = str_detect(description, "aeration"),
+         grounds = str_detect(description, "grounds"),
+         proportionate = str_detect(description, "proportionate"),
+         slate = str_detect(description, "slate"),
+         sagebrush = str_detect(description, "sagebrush"),
+         chaparral = str_detect(description, "chaparral"),
+         sipped = str_detect(description, "sipped"),
+         peppercorns = str_detect(description, "peppercorns"),
+         waves = str_detect(description, "waves"),
+         feral = str_detect(description, "feral"),
+         mace = str_detect(description, "mace"),
+         appetizing = str_detect(description, "appetizing"),
+         study = str_detect(description, "study")) %>%
   mutate(cherry_year = year * cherry, 
          chocolate_year = year * chocolate,
          earth_year = year * earth,
          oak_year = year * oak,
          aroma_year = year * aroma, 
+         dark_year = year * dark,
          berry_year = year * berry,
          spice_year = year * spice,
          floral_year = year * floral,
@@ -69,20 +109,52 @@ wino <- wine %>%
          acidity_year = year * acidity,
          complex_year = year * complex,
          nose_year = year * nose,
+         light_year = year * light,
+         raspberry_year = year * raspberry,
+         cranberry_year = year * cranberry,
+         alert_year = year * alert,
+         allergic_year = year * allergic,
+         acids_year = year * acids,
+         willamette_year = year * willamette,
+         stiff_year = year * stiff,
+         details_year = year * details,
+         lick_year = year * lick,
+         beaune_year = year * beaune,
+         nuits_year = year * nuits,
+         georges_year = year * georges,
+         chambertin_year = year * chambertin,
+         dundee_year = year * dundee,
+         aeration_year = year * aeration,
+         grounds_year = year * grounds,
+         proportionate_year = year * proportionate,
+         slate_year = year * slate,
+         sagebrush_year = year * sagebrush,
+         chaparral_year = year * chaparral,
+         sipped_year = year * sipped,
+         peppercorns_year = year * peppercorns,
+         waves_year = year * waves,
+         feral_year = year * feral,
+         mace_year = year * mace,
+         appetizing_year = year * appetizing,
+         study_year = year * study
         ) %>%
   select(-description)
 ```
 
+## Save the dataframe
+
+```{r}
+write_rds(wine, file="group_n_knn.rds")
+```
 
 ## Building KNN Model
 ```{r}
-set.seed(5)
-
-wine_sample <- wino %>% sample_n(size = 0.1 * nrow(wino))
-
-split <- createDataPartition(wine_sample$province, p = 0.8, list = FALSE)
-train <- wine_sample[split, ]
-test <- wine_sample[-split, ]
+#set.seed(93129)
+set.seed(43) #0.5459 
+wine <- readRDS("group_n_knn.rds")
+split <- createDataPartition(wino$province, p = 0.8, list = FALSE)
+train <- wino[split, ]
+test <- wino[-split, ]
 fit <- train(province ~ .,
              data = train, 
              method = "knn",
@@ -96,59 +168,3 @@ confusionMatrix(predict(fit, test),factor(test$province))
 
 
 
-
-
-
-
-
-
-
-## WORDS
-```{r}
-library(tidytext)
-library(SnowballC)
-library(pROC) 
-```
-
-```{r}
-desc_to_words <- function(df, omits) { 
-  df %>%
-    unnest_tokens(word, description) %>%
-    anti_join(stop_words) %>% 
-    filter(!(word %in% omits))
-}
-```
-
-```{r}
-words <- desc_to_words(wine, c("wine","pinot","vineyard"))
-
-head(words)
-```
-
-```{r}
-words_to_stems <- function(df) { 
-  df %>%
-    mutate(word = wordStem(word))
-}
-```
-
-```{r}
-stems <- words_to_stems(words)
-head(stems)
-```
-
-```{r}
-filter_by_count <- function(df, j) { 
-  df %>%
-    count(id, word) %>% 
-    group_by(id) %>% mutate(exists = (n>0)) %>% ungroup %>% 
-    group_by(word) %>% 
-    mutate(total = sum(n)) %>% 
-    filter(total > j)
-}
-```
-
-```{r}
-fstems = filter_by_count(stems, 1000)
-fstems
-```
